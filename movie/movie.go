@@ -11,11 +11,12 @@ import (
 )
 
 type Movie struct {
-	Title  string `json:title`
-	Desc   string `json:overview`
-	Poster string `json:poster_path`
-	Rate   int    `json:vote_average`
-	Genres []int  `json:genre_ids`
+	Id     int    `json:"id"`
+	Desc   string `json:"overview"`
+	Title  string `json:"title"`
+	Poster string `json:"poster_path"`
+	Rate   int    `json:"vote_average`
+	Genres []int  `json:"genre_ids"`
 }
 
 func Search(query string) (map[string]interface{}, error) {
