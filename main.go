@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"net/http"
+	"net/url"
 
 	_ "image/jpeg"
 	_ "image/png"
@@ -15,11 +16,13 @@ import (
 	"github.com/gusti-andika/movie.go/config"
 	"github.com/gusti-andika/movie.go/data"
 	"github.com/gusti-andika/movie.go/genre"
+	"github.com/gusti-andika/movie.go/widgetx"
 )
 
 var (
 	topWindow   fyne.Window
 	contentView *fyne.Container
+	breadcrumb  *widgetx.Breadcrumb
 )
 
 func main() {
@@ -37,22 +40,35 @@ func main() {
 
 	nav.Init(genres)
 
-	navView := makeNav(&nav)
+	navView := createNavigatorView(&nav)
 
-	//contentView = fyne.NewContainerWithLayout(layout.NewGridWrapLayout(fyne.NewSize(90, 90)))
-	contentView = container.NewGridWithColumns(2)
-	_container := container.NewMax(container.NewVScroll(contentView))
-
+	//contentView = container.NewGridWithColumns(2)
+	_container := container.NewMax(createMainView())
 	split := container.NewHSplit(navView, _container)
 	split.Offset = 0.2
 	w.SetContent(split)
 	w.SetMaster()
 
 	w.Resize(fyne.NewSize(640, 460))
+	go refreshImage()
 	w.ShowAndRun()
 }
 
-func makeNav(nav *data.TreeData) fyne.CanvasObject {
+func createMainView() fyne.CanvasObject {
+	breadcrumb = widgetx.NewBreadcrumb("Movie Golang App", func() {
+		contentView.Objects = []fyne.CanvasObject{welcomeScreen()}
+		contentView.Refresh()
+	})
+
+	top := container.NewVBox(breadcrumb.Container, widget.NewSeparator())
+
+	contentView = container.NewGridWithColumns(2)
+	contentView.Objects = []fyne.CanvasObject{welcomeScreen()}
+	contentView.Refresh()
+	return container.NewBorder(top, nil, nil, nil, container.NewVScroll(contentView))
+}
+
+func createNavigatorView(nav *data.TreeData) fyne.CanvasObject {
 
 	tree := &widget.Tree{
 		ChildUIDs: func(uid string) []string {
@@ -77,33 +93,81 @@ func makeNav(nav *data.TreeData) fyne.CanvasObject {
 		},
 		OnSelected: func(uid string) {
 			if t, ok := (*nav).Nodes[uid]; ok {
-				selectGenre(t.(genre.Genre))
+				if _, ok := (*nav).Uids[uid]; !ok {
+					selectGenre(t.(genre.Genre))
+				}
 			}
 		},
 	}
 
-	return container.NewBorder(nil, nil, nil, nil, tree)
+	top := container.NewVBox(widget.NewLabel("GENRES"), widget.NewSeparator())
+	return container.NewBorder(top, nil, nil, nil, tree)
+}
+
+func parseURL(urlStr string) *url.URL {
+	link, err := url.Parse(urlStr)
+	if err != nil {
+		fyne.LogError("Could not parse URL", err)
+	}
+
+	return link
+}
+
+func welcomeScreen() fyne.CanvasObject {
+	return container.NewCenter(container.NewVBox(
+		widget.NewLabelWithStyle("Welcome to golang Movie Catalog", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		container.NewHBox(
+			widget.NewHyperlink("fyne.io", parseURL("https://fyne.io/")),
+			widget.NewLabel("-"),
+			widget.NewHyperlink("themoviedb.org", parseURL("https://developers.themoviedb.org")),
+		),
+	))
 }
 
 func selectGenre(g genre.Genre) {
 	m, _ := g.Movies()
 	cards := []fyne.CanvasObject{}
 
+	contentView.Objects = []fyne.CanvasObject{ widget.NewProgressBarInfinite() }
+	contentView.Refresh()
+
 	for _, mm := range m {
 		desc := widget.NewLabel(mm.Desc)
 		desc.Wrapping = fyne.TextWrapWord
 		card := widget.NewCard(mm.Title, "", desc)
 		imageStr, _ := config.ImageURL(mm.Poster)
-		if i, f := loadImage(imageStr); f {
-			card.Image = canvas.NewImageFromImage(i)
-			card.Image.FillMode = canvas.ImageFillOriginal
-
-		}
+		runLoadImage(imageStr, card)
 		cards = append(cards, card)
 	}
 
+	breadcrumb.SetGenre(g.Name)
 	contentView.Objects = cards
 	contentView.Refresh()
+}
+
+type ImageLoad struct {
+	card   *widget.Card
+	imgUrl string
+}
+
+var loads = make(chan ImageLoad, 20)
+
+func runLoadImage(url string, card *widget.Card) {
+	loads <- ImageLoad{
+		card:   card,
+		imgUrl: url,
+	}
+
+}
+
+func refreshImage() {
+	for load := range loads {
+		if loadedImage, success := loadImage(load.imgUrl); success {
+			canvasImage := canvas.NewImageFromImage(loadedImage)
+			canvasImage.FillMode = canvas.ImageFillOriginal
+			load.card.SetImage(canvasImage)
+		}
+	}
 }
 
 func loadImage(url string) (image.Image, bool) {
