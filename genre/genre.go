@@ -9,23 +9,28 @@ import (
 	"github.com/gusti-andika/movie.go/movie"
 )
 
+// hold genre information from themoviedb.org genre API
 type Genre struct {
 	Id   int    `json:id`
 	Name string `json:name`
 }
 
+// Node interface get ID
 func (g Genre) NodeId() string {
 	return fmt.Sprint(g.Id)
 }
 
+// Node interface get Name
 func (g Genre) NodeName() string {
 	return g.Name
 }
 
+// themoviedb.org API url to get movie by genre
 func (g Genre) MoviesURL() string {
 	return fmt.Sprintf("%s/discover/movie?api_key=%s&with_genres=%d", config.BASE_URL, config.API_KEY, g.Id)
 }
 
+// gets all movie for this genre
 func (g *Genre) Movies() ([]movie.Movie, error) {
 	url := g.MoviesURL()
 	res, err := http.Get(url)
@@ -52,6 +57,7 @@ func (g *Genre) Movies() ([]movie.Movie, error) {
 	return data.Data, nil
 }
 
+// gets all genre
 func List() ([]Genre, error) {
 	url := fmt.Sprintf("%s/genre/movie/list?api_key=%s", config.BASE_URL, config.API_KEY)
 	res, err := http.Get(url)

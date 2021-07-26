@@ -1,8 +1,6 @@
 package main
 
 import (
-	"image"
-	"net/http"
 	"net/url"
 
 	_ "image/jpeg"
@@ -10,9 +8,9 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/gusti-andika/movie.go/background"
 	"github.com/gusti-andika/movie.go/config"
 	"github.com/gusti-andika/movie.go/data"
 	"github.com/gusti-andika/movie.go/genre"
@@ -50,7 +48,7 @@ func main() {
 	w.SetMaster()
 
 	w.Resize(fyne.NewSize(640, 460))
-	go refreshImage()
+	go background.RefreshImage()
 	w.ShowAndRun()
 }
 
@@ -128,7 +126,7 @@ func selectGenre(g genre.Genre) {
 	m, _ := g.Movies()
 	cards := []fyne.CanvasObject{}
 
-	contentView.Objects = []fyne.CanvasObject{ widget.NewProgressBarInfinite() }
+	contentView.Objects = []fyne.CanvasObject{widget.NewProgressBarInfinite()}
 	contentView.Refresh()
 
 	for _, mm := range m {
@@ -136,51 +134,11 @@ func selectGenre(g genre.Genre) {
 		desc.Wrapping = fyne.TextWrapWord
 		card := widget.NewCard(mm.Title, "", desc)
 		imageStr, _ := config.ImageURL(mm.Poster)
-		runLoadImage(imageStr, card)
+		background.LoadImage(imageStr, card)
 		cards = append(cards, card)
 	}
 
 	breadcrumb.SetGenre(g.Name)
 	contentView.Objects = cards
 	contentView.Refresh()
-}
-
-type ImageLoad struct {
-	card   *widget.Card
-	imgUrl string
-}
-
-var loads = make(chan ImageLoad, 20)
-
-func runLoadImage(url string, card *widget.Card) {
-	loads <- ImageLoad{
-		card:   card,
-		imgUrl: url,
-	}
-
-}
-
-func refreshImage() {
-	for load := range loads {
-		if loadedImage, success := loadImage(load.imgUrl); success {
-			canvasImage := canvas.NewImageFromImage(loadedImage)
-			canvasImage.FillMode = canvas.ImageFillOriginal
-			load.card.SetImage(canvasImage)
-		}
-	}
-}
-
-func loadImage(url string) (image.Image, bool) {
-	res, err := http.Get(url)
-	if err != nil {
-		return nil, false
-	}
-
-	defer res.Body.Close()
-	img, _, err := image.Decode(res.Body)
-	if err != nil {
-		return nil, false
-	}
-
-	return img, true
 }

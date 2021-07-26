@@ -6,16 +6,19 @@ import (
 	"github.com/gusti-andika/movie.go/genre"
 )
 
+// view model for our treeview navigator
 type TreeData struct {
 	Uids  map[string][]string
 	Nodes map[string]Node
 }
 
+// each node displayed under treevieww
 type Node interface {
 	NodeId() string
 	NodeName() string
 }
 
+// adapt all genre to treedata view model
 func (d *TreeData) Init(list []genre.Genre) {
 	d.Uids = make(map[string][]string)
 	d.Nodes = make(map[string]Node, len(list))
